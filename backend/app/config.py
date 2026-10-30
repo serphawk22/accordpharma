@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     allow_demo_seed: bool = False
     database_url: str = ""
     openai_api_key: str = ""
-    openai_model: str = ""
+    openai_model: str = "gpt-4o"
     jwt_secret_key: str = ""
     access_token_minutes: int = Field(default=1440, ge=1, le=10080)
     refresh_token_days: int = Field(default=14, ge=1, le=90)

@@ -20,6 +20,8 @@ The backend is built with FastAPI and PostgreSQL (SQLAlchemy / psycopg 3). Both 
    - `JWT_SECRET_KEY`: A strong 64-char random string (e.g., generated with `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
    - `APP_ENV`: `production` (or `development`).
    - `CORS_ORIGINS`: Your Vercel frontend URL(s), comma-separated without wildcards (e.g. `https://your-frontend.vercel.app,http://localhost:3000`).
+   - `OPENAI_MODEL`: `gpt-4o`
+   - `OPENAI_API_KEY`: Your OpenAI API key (optional)
    - `FRONTEND_URL`: `https://your-frontend.vercel.app`
    - `BACKEND_URL`: `https://${{RAILWAY_PUBLIC_DOMAIN}}`
    - `LOG_LEVEL`: `INFO`
