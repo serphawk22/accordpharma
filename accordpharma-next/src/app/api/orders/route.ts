@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
-import { getBackendUrl } from '@/lib/api';
+import { getBackendUrl, getServerAuthToken } from '@/lib/api';
 
 function extractToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -13,7 +13,8 @@ function extractToken(request: NextRequest): string | null {
 
 export async function GET(request: NextRequest) {
   const backendUrl = getBackendUrl();
-  const token = extractToken(request);
+  const rawToken = extractToken(request);
+  const token = await getServerAuthToken(rawToken);
   const fallbackOrders = db.getOrders();
 
   try {
@@ -70,7 +71,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const backendUrl = getBackendUrl();
-  const token = extractToken(request);
+  const rawToken = extractToken(request);
+  const token = await getServerAuthToken(rawToken);
 
   try {
     const body = await request.json();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { db } from '@/lib/store';
 import { Lead, LeadConversation, LeadMeeting, LeadNote } from '@/lib/types';
@@ -48,16 +48,20 @@ const PRODUCTS_LIST = [
   'Immunex-Alpha (Interleukin-15 Fusion)',
 ];
 
+import { clientStore } from '@/lib/clientStore';
+
 export default function LeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>(() => db.getLeads());
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(() => leads[0] || null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
   const [drawerTab, setDrawerTab] = useState<'conversations' | 'meetings' | 'notes' | 'qualification'>('conversations');
 
   // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [conversionLead, setConversionLead] = useState<Lead | null>(null);
   const [conversionSuccessMsg, setConversionSuccessMsg] = useState<string | null>(null);
@@ -101,9 +105,31 @@ export default function LeadsPage() {
     location: 'Hospital Medical Staff Room / MS Teams',
   });
 
-  // Refresh active lead from store
+  // Load leads from clientStore (cached) and backend (PostgreSQL)
+  useEffect(() => {
+    const cached = clientStore.getLeads();
+    setLeads(cached);
+    if (cached.length > 0) setSelectedLead(cached[0]);
+    setLoading(false);
+
+    fetch('/api/leads')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.items?.length) {
+          const local = clientStore.getLeads();
+          const localIds = new Set(local.map((l) => l.id));
+          const merged = [...local, ...data.items.filter((d: any) => !localIds.has(d.id))];
+          setLeads(merged);
+          if (merged.length > 0 && !selectedLead) {
+            setSelectedLead(merged[0]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const refreshLeads = (updatedActiveId?: string) => {
-    const fresh = [...db.getLeads()];
+    const fresh = clientStore.getLeads();
     setLeads(fresh);
     const targetId = updatedActiveId || selectedLead?.id;
     if (targetId) {
@@ -127,47 +153,76 @@ export default function LeadsPage() {
     setShowDrawer(true);
   };
 
-  const handleCreateLead = (e: React.FormEvent) => {
+  const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    const created = db.addLead({
-      full_name: formData.full_name,
-      title: formData.title,
-      institution: formData.institution,
-      specialty: formData.specialty,
-      status: 'new',
-      source: formData.source,
-      estimated_value: Number(formData.estimated_value),
-      email: formData.email,
-      phone: formData.phone,
-      territory: formData.territory,
-      assigned_rep: formData.assigned_rep,
-      qualification_score: 30,
-      qualification_details: {
-        prescribing_authority: true,
-        active_patient_volume: false,
-        budget_readiness: false,
-        formulary_alignment: false,
-      },
-    });
-    refreshLeads(created.id);
-    setShowCreateModal(false);
-    setFormData({
-      full_name: '',
-      title: 'Associate Director of Medical Oncology',
-      institution: '',
-      specialty: 'Oncology',
-      source: 'Medical Conference Lead',
-      estimated_value: 240000,
-      email: '',
-      phone: '',
-      territory: 'Territory South - Texas',
-      assigned_rep: 'David Chen',
-    });
+    if (!formData.full_name.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      let created: Lead;
+      if (res.ok) {
+        created = await res.json();
+      } else {
+        created = {
+          id: `ld-${Date.now()}`,
+          full_name: formData.full_name,
+          title: formData.title,
+          institution: formData.institution,
+          specialty: formData.specialty,
+          status: 'new',
+          source: formData.source,
+          estimated_value: Number(formData.estimated_value),
+          email: formData.email,
+          phone: formData.phone,
+          territory: formData.territory,
+          assigned_rep: formData.assigned_rep,
+          qualification_score: 30,
+          qualification_details: {
+            prescribing_authority: true,
+            active_patient_volume: false,
+            budget_readiness: false,
+            formulary_alignment: false,
+          },
+          notes: [],
+          conversations: [],
+          meetings: [],
+          created_at: new Date().toISOString(),
+        };
+      }
+
+      const updated = clientStore.saveLead(created);
+      setLeads(updated);
+      setSelectedLead(created);
+      setShowCreateModal(false);
+      setFormData({
+        full_name: '',
+        title: 'Associate Director of Medical Oncology',
+        institution: '',
+        specialty: 'Oncology',
+        source: 'Medical Conference Lead',
+        estimated_value: 240000,
+        email: '',
+        phone: '',
+        territory: 'Territory South - Texas',
+        assigned_rep: 'David Chen',
+      });
+    } catch (err) {
+      console.error('Failed to create lead:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAssignRep = (leadId: string, repName: string) => {
-    db.assignLeadRep(leadId, repName);
-    refreshLeads(leadId);
+    const updated = clientStore.updateLead(leadId, { assigned_rep: repName });
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === leadId) || null);
   };
 
   const handleToggleQualificationCheck = (
@@ -184,48 +239,53 @@ export default function LeadsPage() {
       ...curDetails,
       [key]: !curDetails[key],
     };
-    db.qualifyLead(selectedLead.id, nextDetails);
-    refreshLeads(selectedLead.id);
+    const updated = clientStore.qualifyLead(selectedLead.id, nextDetails);
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === selectedLead.id) || null);
   };
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !newNoteText.trim()) return;
-    db.addLeadNote(selectedLead.id, newNoteText.trim(), selectedLead.assigned_rep || 'Commercial Rep');
+    const updated = clientStore.addLeadNote(selectedLead.id, newNoteText.trim(), selectedLead.assigned_rep || 'Marcus Vance');
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === selectedLead.id) || null);
     setNewNoteText('');
-    refreshLeads(selectedLead.id);
   };
 
   const handleAddConversation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !newConvo.summary.trim()) return;
-    db.addLeadConversation(selectedLead.id, {
+    const updated = clientStore.addLeadConversation(selectedLead.id, {
       type: newConvo.type,
       summary: newConvo.summary.trim(),
       sentiment: newConvo.sentiment,
       outcome: newConvo.outcome.trim() || 'Follow-up scheduled with institutional staff.',
       rep_name: selectedLead.assigned_rep || 'Marcus Vance',
     });
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === selectedLead.id) || null);
     setNewConvo({
       type: 'call',
       summary: '',
       sentiment: 'very_receptive',
       outcome: '',
     });
-    refreshLeads(selectedLead.id);
   };
 
   const handleAddMeeting = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !newMeeting.title.trim()) return;
     const scheduledISO = `${newMeeting.date}T${newMeeting.time}:00Z`;
-    db.addLeadMeeting(selectedLead.id, {
+    const updated = clientStore.addLeadMeeting(selectedLead.id, {
       title: newMeeting.title.trim(),
       scheduled_at: scheduledISO,
       duration_minutes: Number(newMeeting.duration_minutes),
       location: newMeeting.location.trim(),
       status: 'scheduled',
     });
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === selectedLead.id) || null);
     setNewMeeting({
       title: '',
       date: '2026-11-10',
@@ -233,7 +293,6 @@ export default function LeadsPage() {
       duration_minutes: 30,
       location: 'Hospital Medical Staff Room / MS Teams',
     });
-    refreshLeads(selectedLead.id);
   };
 
   const handleOpenConvertModal = (lead: Lead) => {
@@ -254,17 +313,26 @@ export default function LeadsPage() {
   const handleExecuteConversion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!conversionLead) return;
-    const result = db.convertLeadToOpportunity(conversionLead.id, {
-      deal_name: convertForm.deal_name,
-      estimated_value: Number(convertForm.estimated_value),
-      expected_close_date: convertForm.expected_close_date,
-      target_product: convertForm.target_product,
-      rep_name: convertForm.rep_name,
-    });
+
+    fetch('/api/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: convertForm.deal_name,
+        estimated_value: Number(convertForm.estimated_value),
+        expected_close_date: convertForm.expected_close_date,
+        product_name: convertForm.target_product,
+        rep_name: convertForm.rep_name,
+        stage: 'PROSPECTING',
+      }),
+    }).catch(() => {});
+
+    const updated = clientStore.updateLead(conversionLead.id, { status: 'converted' });
+    setLeads(updated);
+    setSelectedLead(updated.find((l) => l.id === conversionLead.id) || null);
     setShowConvertModal(false);
-    refreshLeads(conversionLead.id);
     setConversionSuccessMsg(
-      `Successfully converted ${conversionLead.full_name} into Commercial Opportunity "${result?.opportunity.name}"!`
+      `Successfully converted ${conversionLead.full_name} into Commercial Opportunity "${convertForm.deal_name}"!`
     );
     setTimeout(() => setConversionSuccessMsg(null), 6000);
   };

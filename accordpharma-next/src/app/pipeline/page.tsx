@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/store';
-import { Opportunity } from '@/lib/types';
+import { Opportunity, Account } from '@/lib/types';
+import { clientStore } from '@/lib/clientStore';
 import { Bilingual } from '@/components/Bilingual';
 import {
   TrendingUp,
@@ -24,16 +25,18 @@ import {
 const STAGES: Opportunity['stage'][] = ['PROSPECTING', 'QUALIFICATION', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
 
 export default function PipelinePage() {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => db.getOpportunities());
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState<Opportunity | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
     name: '',
-    account_id: db.getAccounts()[0]?.id || '',
+    account_id: '',
     stage: 'PROSPECTING' as Opportunity['stage'],
     estimated_value: 150000,
     probability: 30,
@@ -41,6 +44,47 @@ export default function PipelinePage() {
     product_name: 'CardioVas-XR 100mg Tablets',
     rep_name: 'Marcus Vance',
   });
+
+  // Load from clientStore and backend
+  useEffect(() => {
+    const cachedOpps = clientStore.getOpportunities();
+    setOpportunities(cachedOpps);
+
+    const cachedAccounts = clientStore.getAccounts();
+    setAccounts(cachedAccounts);
+    if (cachedAccounts.length > 0 && !formData.account_id) {
+      setFormData((prev) => ({ ...prev, account_id: cachedAccounts[0].id }));
+    }
+
+    // Fetch live opportunities from Railway PostgreSQL
+    fetch('/api/pipeline')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.items?.length) {
+          const local = clientStore.getOpportunities();
+          const localIds = new Set(local.map((o) => o.id));
+          const merged = [...local, ...data.items.filter((i: any) => !localIds.has(i.id))];
+          setOpportunities(merged);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch pipeline from backend:', err));
+
+    // Fetch live accounts from Railway PostgreSQL
+    fetch('/api/accounts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.items?.length) {
+          const local = clientStore.getAccounts();
+          const localIds = new Set(local.map((a) => a.id));
+          const merged = [...local, ...data.items.filter((i: any) => !localIds.has(i.id))];
+          setAccounts(merged);
+          if (!formData.account_id && merged.length > 0) {
+            setFormData((prev) => ({ ...prev, account_id: merged[0].id }));
+          }
+        }
+      })
+      .catch((err) => console.warn('Could not fetch accounts:', err));
+  }, []);
 
   const totalValue = opportunities.reduce((acc, o) => (o.stage !== 'LOST' ? acc + o.estimated_value : acc), 0);
   const weightedValue = opportunities.reduce(
@@ -50,34 +94,65 @@ export default function PipelinePage() {
   const openCount = opportunities.filter((o) => o.stage !== 'WON' && o.stage !== 'LOST').length;
 
   const handleStageChange = (id: string, newStage: Opportunity['stage']) => {
-    const updated = db.updateOpportunityStage(id, newStage);
-    if (updated) {
-      setOpportunities([...db.getOpportunities()]);
-      if (selectedOpp && selectedOpp.id === id) {
-        setSelectedOpp({ ...selectedOpp, stage: newStage });
-      }
+    const updated = clientStore.updateOpportunityStage(id, newStage);
+    setOpportunities(updated);
+    if (selectedOpp && selectedOpp.id === id) {
+      setSelectedOpp({ ...selectedOpp, stage: newStage });
     }
   };
 
-  const handleCreateOpportunity = (e: React.FormEvent) => {
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
     e.preventDefault();
-    const account = db.getAccount(formData.account_id);
-    db.addOpportunity({
+    if (!formData.name.trim()) return;
+
+    setIsSubmitting(true);
+    const selectedAccount = accounts.find((a) => a.id === formData.account_id);
+    const accountName = selectedAccount?.name || 'Hospital Clinical Center';
+
+    const newOpp: Opportunity = {
+      id: `opp-${Date.now()}`,
       name: formData.name,
-      account_id: formData.account_id,
-      account_name: account?.name || 'Selected System',
+      account_id: formData.account_id || (accounts[0]?.id ?? 'acc-1'),
+      account_name: accountName,
       stage: formData.stage,
       estimated_value: Number(formData.estimated_value),
       probability: Number(formData.probability),
       expected_close_date: formData.expected_close_date,
       product_name: formData.product_name,
       rep_name: formData.rep_name,
-    });
-    setOpportunities([...db.getOpportunities()]);
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      // Send to Railway PostgreSQL backend via Next.js proxy
+      const res = await fetch('/api/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newOpp,
+          account_name: accountName,
+        }),
+      });
+
+      if (res.ok) {
+        const savedFromDb = await res.json();
+        if (savedFromDb?.id) {
+          newOpp.id = String(savedFromDb.id);
+        }
+      }
+    } catch (err) {
+      console.warn('Backend pipeline sync error:', err);
+    }
+
+    // Persist immediately to clientStore so page refresh maintains it
+    const updatedList = clientStore.saveOpportunity(newOpp);
+    setOpportunities(updatedList);
     setShowCreateModal(false);
+    setIsSubmitting(false);
+
     setFormData({
       name: '',
-      account_id: db.getAccounts()[0]?.id || '',
+      account_id: accounts[0]?.id || '',
       stage: 'PROSPECTING',
       estimated_value: 150000,
       probability: 30,
@@ -488,7 +563,7 @@ export default function PipelinePage() {
                   onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold"
                 >
-                  {db.getAccounts().map((a) => (
+                  {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name} ({a.territory})
                     </option>

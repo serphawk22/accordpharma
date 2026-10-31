@@ -65,6 +65,8 @@ export default function Sidebar() {
   const [darkMode, setDarkMode] = useState(true);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [backendUrl, setBackendUrl] = useState('');
+  const [taskCount, setTaskCount] = useState(3);
+  const [contactCount, setContactCount] = useState(5);
 
   // Group collapse toggles
   const [crmOpen, setCrmOpen] = useState(true);
@@ -84,6 +86,14 @@ export default function Sidebar() {
       } else {
         document.documentElement.classList.remove('dark');
       }
+
+      // Read persistent counts
+      const { clientStore } = require('@/lib/clientStore');
+      const tasks = clientStore.getTasks();
+      const contacts = clientStore.getContacts();
+      const pending = tasks.filter((t: any) => t.status === 'pending');
+      setTaskCount(pending.length);
+      setContactCount(contacts.length);
     } catch {}
 
     const url = getBackendUrl();
@@ -93,7 +103,7 @@ export default function Sidebar() {
         setBackendStatus(res.status === 'online' ? 'online' : 'offline');
       })
       .catch(() => setBackendStatus('offline'));
-  }, []);
+  }, [pathname]);
 
   const toggleTheme = () => {
     const next = !darkMode;
@@ -187,7 +197,7 @@ export default function Sidebar() {
               <Bilingual textKey="menuWorkQueue" fallback="My Work Queue" />
             </span>
             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400">
-              3
+              {taskCount}
             </span>
           </Link>
 
@@ -243,7 +253,7 @@ export default function Sidebar() {
                   <Bilingual textKey="menuPrescribers" fallback="Physicians & KOLs" />
                 </span>
                 <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300">
-                  5
+                  {contactCount}
                 </span>
               </Link>
 

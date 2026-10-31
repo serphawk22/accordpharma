@@ -178,6 +178,10 @@ export interface Opportunity {
   probability: number;
   expected_close_date: string;
   product_name: string;
+  product_sku?: string;
+  decision_maker?: string;
+  therapeutic_area?: string;
+  territory?: string;
   rep_name: string;
   created_at: string;
 }

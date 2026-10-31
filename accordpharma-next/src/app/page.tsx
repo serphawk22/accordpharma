@@ -293,7 +293,8 @@ export default function HomePage() {
   const formularies = clientStore.getFormularies();
   const tasks = clientStore.getTasks();
   const activities = db.activities.slice(0, 4);
-  const opportunities = db.getOpportunities();
+  const opportunities = clientStore.getOpportunities();
+  const leads = clientStore.getLeads();
   const inventory = db.getInventory();
   const tenders = db.getTenders();
 
