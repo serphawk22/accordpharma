@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
         localStorage.setItem(USER_KEY, JSON.stringify(profileUser));
 
-        // Set cookie for routing if needed
+        // Set cookie for route protection middleware
         document.cookie = `accord_session=active; path=/; max-age=604800; SameSite=Lax`;
 
         setIsLoading(false);
@@ -200,7 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_KEY);
       localStorage.removeItem(USER_KEY);
-      document.cookie = 'accord_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      // Clear the session cookie so middleware redirects to /login
+      document.cookie = 'accord_session=; path=/; max-age=0; SameSite=Lax';
     }
   };
 

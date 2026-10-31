@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import { AuthGuard } from '@/components/AuthGuard';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { AuthProvider } from '@/lib/AuthContext';
 
@@ -31,7 +32,9 @@ export default function RootLayout({
 
           {/* Main Application Area */}
           <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
-            <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
+            <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+              <AuthGuard>{children}</AuthGuard>
+            </main>
           </div>
         </LanguageProvider>
         </AuthProvider>

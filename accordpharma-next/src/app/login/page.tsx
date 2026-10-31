@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { getBackendUrl, checkBackendHealth } from '@/lib/api';
 import {
@@ -21,8 +21,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState('marcus.vance@accordpharma.com');
@@ -35,7 +36,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.push('/');
+      const next = searchParams.get('next') || '/';
+      router.push(next);
     }
     const url = getBackendUrl();
     setBackendUrl(url);
@@ -52,7 +54,8 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       if (res.success) {
-        router.push('/');
+        const next = searchParams.get('next') || '/';
+        router.push(next);
       } else {
         setErrorMessage(res.error || 'Authentication failed. Please verify credentials.');
       }
@@ -250,5 +253,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

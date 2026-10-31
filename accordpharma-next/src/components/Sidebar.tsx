@@ -117,6 +117,12 @@ export default function Sidebar() {
     }`;
   };
 
+  // Hide sidebar on public pages (login, etc.)
+  const isPublicPage = ['/login', '/reset-password', '/forgot-password'].some(
+    (r) => pathname === r || pathname.startsWith(r + '/')
+  );
+  if (isPublicPage) return null;
+
   return (
     <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-screen sticky top-0 shrink-0 z-30 select-none">
       {/* BRAND HEADER */}
