@@ -49,14 +49,18 @@ import {
   Crosshair,
   Zap,
   Mic2,
-  Swords,
   Cpu,
+  LogOut,
+  LogIn,
+} from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import { Bilingual } from './Bilingual';
 import { checkBackendHealth, getBackendUrl } from '@/lib/api';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, logout, isAuthenticated } = useAuth();
   const [darkMode, setDarkMode] = useState(true);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [backendUrl, setBackendUrl] = useState('');
@@ -606,18 +610,49 @@ export default function Sidebar() {
 
       {/* USER FOOTER STRIP */}
       <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shadow">
-            MV
+        {isAuthenticated && user ? (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white shadow shrink-0">
+              {user.full_name
+                ? user.full_name
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
+                : 'AP'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                {user.full_name || user.email}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                {user.roles?.includes('SUPER_ADMIN')
+                  ? 'System Administrator'
+                  : 'Senior Commercial Rep'}
+              </div>
+            </div>
+            <button
+              onClick={() => logout()}
+              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+              title="Log Out of Accord Pharma"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">Marcus Vance</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Senior Commercial Rep</div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              Session Inactive
+            </div>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all"
+            >
+              <LogIn className="w-3.5 h-3.5" /> Sign In
+            </Link>
           </div>
-          <Link href="/settings" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Settings">
-            <Settings className="w-4 h-4" />
-          </Link>
-        </div>
+        )}
       </div>
     </aside>
   );

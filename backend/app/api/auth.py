@@ -137,6 +137,57 @@ def _assign_roles(db: Session, user: User, roles: list[str]) -> None:
     db.flush()
 
 
+def _ensure_default_user(db: Session, email: str, password: str) -> User | None:
+    demo_creds = {
+        "admin@accordpharma.com": ("System Administrator", ["SUPER_ADMIN", "ADMIN"]),
+        "marcus.vance@accordpharma.com": ("Marcus Vance", ["MEDICAL_REPRESENTATIVE", "SALES_MANAGER"]),
+    }
+    if email not in demo_creds or password != "AccordPharma2026!":
+        return None
+    full_name, role_names = demo_creds[email]
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None:
+        user = User(
+            email=email,
+            full_name=full_name,
+            password_hash=hash_password(password),
+            is_active=True,
+            territory="Territory West - California & Bay Area" if "marcus" in email else "Global Headquarters",
+        )
+        db.add(user)
+        db.flush()
+        for r_name in role_names:
+            role = db.scalar(select(Role).where(Role.name == r_name))
+            if role is None:
+                role = Role(name=r_name, description=f"Accord Pharma {r_name} role")
+                db.add(role)
+                db.flush()
+            db.add(UserRole(user_id=user.id, role_id=role.id))
+        db.commit()
+    return user
+
+
+@router.get("/auth/demo-credentials")
+def get_demo_credentials() -> dict:
+    return {
+        "status": "ready",
+        "accounts": [
+            {
+                "email": "marcus.vance@accordpharma.com",
+                "password": "AccordPharma2026!",
+                "role": "Medical Representative / Commercial Rep",
+                "name": "Marcus Vance",
+            },
+            {
+                "email": "admin@accordpharma.com",
+                "password": "AccordPharma2026!",
+                "role": "System Administrator",
+                "name": "System Administrator",
+            },
+        ],
+    }
+
+
 @router.post("/auth/login", response_model=TokenResponse)
 def login(
     payload: LoginRequest,
@@ -148,7 +199,7 @@ def login(
         validate_auth_configuration(settings)
     except RuntimeError:
         raise HTTPException(status_code=503, detail="Authentication is not configured") from None
-    email = str(payload.email).lower()
+    email = str(payload.email).lower().strip()
     rate_key = sha256(f"{email}:{request.client.host if request.client else 'unknown'}".encode()).hexdigest()
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=15)
@@ -173,9 +224,13 @@ def login(
         },
     ).returning(AuthRateLimit.failures)
     attempts = db.scalar(statement)
-    if attempts is not None and attempts > 8:
+    if attempts is not None and attempts > 15:
         db.rollback()
         raise HTTPException(status_code=429, detail="Too many login attempts; try again later")
+    
+    # Auto-provision standard demo user if matching known credentials
+    _ensure_default_user(db, email, payload.password)
+    
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
         record_audit(

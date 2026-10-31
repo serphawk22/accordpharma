@@ -5,19 +5,28 @@ import { CRMTask } from '@/lib/types';
 import { ListTodo, CheckCircle2, Calendar, Clock, AlertCircle, Building2, Check } from 'lucide-react';
 import { Bilingual } from '@/components/Bilingual';
 
+import { clientStore } from '@/lib/clientStore';
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<CRMTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadTasks = async () => {
+    const cached = clientStore.getTasks();
+    setTasks(cached);
+    setLoading(false);
     try {
       const res = await fetch('/api/tasks');
-      const data = await res.json();
-      setTasks(data.items || []);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items?.length) {
+          const cachedIds = new Set(cached.map((c) => c.id));
+          const combined = [...cached, ...data.items.filter((i: any) => !cachedIds.has(i.id))];
+          setTasks(combined);
+        }
+      }
     } catch {
-      console.error('Failed to load tasks');
-    } finally {
-      setLoading(false);
+      // offline fallback
     }
   };
 
@@ -27,15 +36,17 @@ export default function TasksPage() {
 
   const handleComplete = async (taskId: string) => {
     try {
-      const res = await fetch('/api/tasks', {
+      fetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: taskId }),
-      });
-      if (res.ok) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: 'completed' } : t))
-        );
+      }).catch(() => {});
+      
+      const target = tasks.find((t) => t.id === taskId);
+      if (target) {
+        const updatedTask = { ...target, status: 'completed' as const };
+        const updatedList = clientStore.saveTask(updatedTask);
+        setTasks(updatedList);
       }
     } catch (err) {
       console.error(err);

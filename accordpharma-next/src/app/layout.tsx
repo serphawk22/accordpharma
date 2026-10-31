@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import { LanguageProvider } from '@/lib/LanguageContext';
+import { AuthProvider } from '@/lib/AuthContext';
 
 export const metadata: Metadata = {
   title: 'Accord Pharma · Commercial CRM & Clinical e-Detailing Studio',
@@ -17,7 +18,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex">
-        <LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>
           {/* Navigation Sidebar */}
           <Suspense
             fallback={
@@ -32,6 +34,7 @@ export default function RootLayout({
             <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
           </div>
         </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );

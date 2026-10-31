@@ -25,7 +25,12 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     logging.basicConfig(level=settings.log_level.upper())
     validate_auth_configuration(settings)
-    configure_database(settings)
+    engine = configure_database(settings)
+    try:
+        from app.models import Base
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logging.getLogger(__name__).warning("Database schema check: %s", e)
     try:
         yield
     finally:

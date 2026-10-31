@@ -31,9 +31,7 @@ The backend is built with FastAPI and PostgreSQL (SQLAlchemy / psycopg 3). Both 
 
 ## 2. Deploying the Frontend on Vercel
 
-The repository provides two frontends:
-- **`accordpharma-next`** (Next.js 16 App Router full-stack commercial CRM) — *Recommended*
-- **`frontend`** (Angular 20 SPA)
+The frontend is built with **Next.js 16 App Router** (`accordpharma-next`) and integrates with the Python FastAPI backend on Railway.
 
 ### Deploying Next.js (`accordpharma-next`):
 1. Log in to [Vercel](https://vercel.com/).
@@ -41,21 +39,26 @@ The repository provides two frontends:
 3. In **Project Settings**:
    - **Root Directory**: Click **Edit** and select `accordpharma-next`.
    - **Framework Preset**: Next.js (automatically detected).
-4. In **Environment Variables** (optional, if overriding backend API target):
+4. In **Environment Variables**:
    - `NEXT_PUBLIC_API_URL`: `https://accordpharma-production.up.railway.app`
 5. Click **Deploy**.
 
-### Deploying Angular (`frontend`):
-1. In Vercel, import `serphawk22/accordpharma`.
-2. In **Project Settings**:
-   - **Root Directory**: Click **Edit** and select `frontend`.
-   - **Framework Preset**: Angular.
-   - **Output Directory**: `dist/frontend/browser` (preconfigured in `frontend/vercel.json`).
-3. Click **Deploy**.
+---
+
+## 3. Authentication & Demo Logins
+The application supports real JWT authentication connected to the FastAPI backend:
+- **Commercial Medical Rep**:
+  - Email: `marcus.vance@accordpharma.com`
+  - Password: `AccordPharma2026!`
+- **System Administrator**:
+  - Email: `admin@accordpharma.com`
+  - Password: `AccordPharma2026!`
+
+Both can also be launched with a single click from the Landing Page or `/login` screen.
 
 ---
 
-## 3. CORS & Connectivity Check
+## 4. CORS & Connectivity Check
 Once both services are deployed:
 1. Update `CORS_ORIGINS` in Railway with the exact Vercel production domain.
 2. Visit `https://your-backend.up.railway.app/health` to verify backend status.

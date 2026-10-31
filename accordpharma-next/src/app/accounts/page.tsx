@@ -22,13 +22,20 @@ export default function AccountsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch('/api/accounts')
-      .then((res) => res.json())
-      .then((data) => {
-        setAccounts(data.items || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    import('@/lib/clientStore').then(({ clientStore }) => {
+      const cached = clientStore.getAccounts();
+      setAccounts(cached);
+      setLoading(false);
+      fetch('/api/accounts')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.items?.length) {
+            const cachedIds = new Set(cached.map((c) => c.id));
+            setAccounts([...cached, ...data.items.filter((i: any) => !cachedIds.has(i.id))]);
+          }
+        })
+        .catch(() => {});
+    });
   }, []);
 
   const filteredAccounts = accounts.filter(
