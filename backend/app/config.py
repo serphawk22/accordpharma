@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     access_token_minutes: int = Field(default=1440, ge=1, le=10080)
     refresh_token_days: int = Field(default=14, ge=1, le=90)
     password_reset_minutes: int = Field(default=30, ge=5, le=120)
-    frontend_url: str = "http://localhost:4200"
-    backend_url: str = "http://localhost:8000"
-    cors_origins: str = "http://localhost:4200"
+    frontend_url: str = "https://accordpharma.vercel.app"
+    backend_url: str = "https://accordpharma-production.up.railway.app"
+    cors_origins: str = "https://accordpharma.vercel.app,https://accordpharma-production.up.railway.app,http://localhost:3000,http://localhost:4200"
     smtp_host: str = ""
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str = ""

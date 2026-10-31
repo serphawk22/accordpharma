@@ -19,11 +19,11 @@ The backend is built with FastAPI and PostgreSQL (SQLAlchemy / psycopg 3). Both 
    - `DATABASE_URL`: Your Neon PostgreSQL connection string (e.g. `postgresql://user:pass@host/neondb?sslmode=require`).
    - `JWT_SECRET_KEY`: A strong 64-char random string (e.g., generated with `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
    - `APP_ENV`: `production` (or `development`).
-   - `CORS_ORIGINS`: Your Vercel frontend URL(s), comma-separated without wildcards (e.g. `https://your-frontend.vercel.app,http://localhost:3000`).
+   - `CORS_ORIGINS`: `https://accordpharma.vercel.app,https://accordpharma-production.up.railway.app,http://localhost:3000,http://localhost:4200`
    - `OPENAI_MODEL`: `gpt-4o`
    - `OPENAI_API_KEY`: Your OpenAI API key (optional)
-   - `FRONTEND_URL`: `https://your-frontend.vercel.app`
-   - `BACKEND_URL`: `https://${{RAILWAY_PUBLIC_DOMAIN}}`
+   - `FRONTEND_URL`: `https://accordpharma.vercel.app`
+   - `BACKEND_URL`: `https://accordpharma-production.up.railway.app`
    - `LOG_LEVEL`: `INFO`
 6. Click **Deploy**. Railway will run the health check against `/health` and assign a public domain.
 
@@ -42,7 +42,7 @@ The repository provides two frontends:
    - **Root Directory**: Click **Edit** and select `accordpharma-next`.
    - **Framework Preset**: Next.js (automatically detected).
 4. In **Environment Variables** (optional, if overriding backend API target):
-   - `NEXT_PUBLIC_API_URL`: Your Railway backend URL (e.g., `https://your-backend.up.railway.app/api/v1`).
+   - `NEXT_PUBLIC_API_URL`: `https://accordpharma-production.up.railway.app`
 5. Click **Deploy**.
 
 ### Deploying Angular (`frontend`):

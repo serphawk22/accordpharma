@@ -51,13 +51,15 @@ import {
   Mic2,
   Swords,
   Cpu,
-} from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import { Bilingual } from './Bilingual';
+import { checkBackendHealth, getBackendUrl } from '@/lib/api';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [darkMode, setDarkMode] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [backendUrl, setBackendUrl] = useState('');
 
   // Group collapse toggles
   const [crmOpen, setCrmOpen] = useState(true);
@@ -78,6 +80,14 @@ export default function Sidebar() {
         document.documentElement.classList.remove('dark');
       }
     } catch {}
+
+    const url = getBackendUrl();
+    setBackendUrl(url);
+    checkBackendHealth()
+      .then((res) => {
+        setBackendStatus(res.status === 'online' ? 'online' : 'offline');
+      })
+      .catch(() => setBackendStatus('offline'));
   }, []);
 
   const toggleTheme = () => {
@@ -560,6 +570,37 @@ export default function Sidebar() {
               </Link>
             </div>
           )}
+        </div>
+      {/* BACKEND CONNECTIVITY STATUS */}
+      <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/40">
+        <div className="flex items-center justify-between text-[11px] font-semibold">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                backendStatus === 'online'
+                  ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                  : backendStatus === 'offline'
+                  ? 'bg-rose-500'
+                  : 'bg-amber-400 animate-pulse'
+              }`}
+            />
+            <span className="text-slate-600 dark:text-slate-400 truncate text-[10px]">
+              {backendStatus === 'online'
+                ? 'Railway API Connected'
+                : backendStatus === 'offline'
+                ? 'API Disconnected'
+                : 'Connecting API...'}
+            </span>
+          </div>
+          <a
+            href={backendUrl ? `${backendUrl}/docs` : 'https://accordpharma-production.up.railway.app/docs'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline uppercase font-bold shrink-0 ml-1"
+            title={`Connected to Railway backend at ${backendUrl || 'https://accordpharma-production.up.railway.app'}`}
+          >
+            API Docs ↗
+          </a>
         </div>
       </div>
 

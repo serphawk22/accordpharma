@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
@@ -33,17 +33,57 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Accord Pharma API", version="0.1.0", lifespan=lifespan)
-cors_origins = [origin.strip() for origin in get_settings().cors_origins.split(",") if origin.strip()]
-if not cors_origins or "*" in cors_origins:
-    raise RuntimeError("CORS_ORIGINS must contain explicit origins and cannot contain a wildcard")
+
+settings = get_settings()
+raw_origins = [
+    origin.strip().rstrip("/")
+    for origin in settings.cors_origins.split(",")
+    if origin.strip()
+]
+default_origins = [
+    "https://accordpharma.vercel.app",
+    "https://accordpharma-production.up.railway.app",
+    "http://localhost:3000",
+    "http://localhost:4200",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:4200",
+]
+if settings.frontend_url:
+    default_origins.append(settings.frontend_url.strip().rstrip("/"))
+if settings.backend_url:
+    default_origins.append(settings.backend_url.strip().rstrip("/"))
+
+# Deduplicate origins while preserving order
+cors_origins = list(dict.fromkeys([o for o in raw_origins + default_origins if o and o != "*"]))
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+@app.get("/")
+def root():
+    st = get_settings()
+    return {
+        "status": "online",
+        "service": "Accord Pharma API",
+        "version": "0.1.0",
+        "frontend": st.frontend_url,
+        "docs": "/docs",
+        "health": "/health",
+        "api_v1_health": "/api/v1/health",
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/health")
