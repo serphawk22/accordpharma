@@ -22,11 +22,27 @@ export default function OrdersPage() {
     unit_price: 45.0,
   });
 
+  const [accounts, setAccounts] = useState<any[]>([]);
+
   const loadOrders = async () => {
     const cached = clientStore.getOrders();
     setOrders(cached);
     setLoading(false);
     try {
+      // 1. Fetch accounts for the order account selector
+      const accRes = await fetch('/api/accounts');
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        if (accData.items?.length) {
+          setAccounts(accData.items);
+          setOrderForm((prev) => ({
+            ...prev,
+            account_id: prev.account_id === 'acc-1' ? accData.items[0].id : prev.account_id,
+          }));
+        }
+      }
+
+      // 2. Fetch orders from PostgreSQL
       const res = await fetch('/api/orders');
       if (res.ok) {
         const data = await res.json();
@@ -236,10 +252,20 @@ export default function OrdersPage() {
                   onChange={(e) => setOrderForm({ ...orderForm, account_id: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
                 >
-                  <option value="acc-1">St. Jude Metropolitan Medical Center</option>
-                  <option value="acc-2">Cedars-Sinai Comprehensive Cancer Pavilion</option>
-                  <option value="acc-3">Northwestern Heart & Vascular Institute</option>
-                  <option value="acc-4">Memorial Sloan Regional Health System</option>
+                  {accounts.length > 0 ? (
+                    accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="acc-1">St. Jude Metropolitan Medical Center</option>
+                      <option value="acc-2">Cedars-Sinai Comprehensive Cancer Pavilion</option>
+                      <option value="acc-3">Northwestern Heart & Vascular Institute</option>
+                      <option value="acc-4">Memorial Sloan Regional Health System</option>
+                    </>
+                  )}
                 </select>
               </div>
 

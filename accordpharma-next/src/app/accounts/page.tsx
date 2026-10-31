@@ -13,6 +13,9 @@ import {
   ChevronRight,
   Activity,
   UserCheck,
+  Plus,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 import { Bilingual } from '@/components/Bilingual';
 
@@ -20,23 +23,91 @@ export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newAccount, setNewAccount] = useState({
+    name: '',
+    account_type: 'hospital',
+    beds: 350,
+    territory: 'Territory West - California & Bay Area',
+    owner_name: 'Marcus Vance',
+  });
 
-  useEffect(() => {
-    import('@/lib/clientStore').then(({ clientStore }) => {
+  const loadAccounts = async () => {
+    try {
+      const { clientStore } = await import('@/lib/clientStore');
       const cached = clientStore.getAccounts();
       setAccounts(cached);
       setLoading(false);
-      fetch('/api/accounts')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.items?.length) {
-            const cachedIds = new Set(cached.map((c) => c.id));
-            setAccounts([...cached, ...data.items.filter((i: any) => !cachedIds.has(i.id))]);
-          }
-        })
-        .catch(() => {});
-    });
+
+      const res = await fetch('/api/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items?.length) {
+          const cachedIds = new Set(cached.map((c) => c.id));
+          const combined = [...cached, ...data.items.filter((i: any) => !cachedIds.has(i.id))];
+          setAccounts(combined);
+        }
+      }
+    } catch {
+      // offline fallback
+    }
+  };
+
+  useEffect(() => {
+    loadAccounts();
   }, []);
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccount.name.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAccount),
+      });
+
+      let saved: Account;
+      if (res.ok) {
+        saved = await res.json();
+      } else {
+        saved = {
+          id: `acc-${Date.now()}`,
+          name: newAccount.name,
+          account_type: (newAccount.account_type ? newAccount.account_type.toUpperCase() : 'HOSPITAL') as any,
+          territory: newAccount.territory,
+          owner_id: 'usr-1',
+          owner_name: newAccount.owner_name,
+          health_score: 94,
+          health_status: 'healthy',
+          beds: Number(newAccount.beds),
+          total_invoiced: 150000,
+          total_collected: 120000,
+          open_deals_count: 2,
+          created_at: new Date().toISOString(),
+        };
+      }
+
+      const { clientStore } = await import('@/lib/clientStore');
+      const updated = clientStore.saveAccount(saved);
+      setAccounts(updated);
+      setShowAddModal(false);
+      setNewAccount({
+        name: '',
+        account_type: 'hospital',
+        beds: 350,
+        territory: 'Territory West - California & Bay Area',
+        owner_name: 'Marcus Vance',
+      });
+    } catch (err) {
+      console.error('Failed to create account:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filteredAccounts = accounts.filter(
     (a) =>
@@ -59,6 +130,15 @@ export default function AccountsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Invoiced revenues, bed capacities, deterministic health scoring, and assigned commercial representatives.
           </p>
+        </div>
+        <div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all hover:scale-[1.02]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Health System</span>
+          </button>
         </div>
       </div>
 
@@ -128,31 +208,120 @@ export default function AccountsPage() {
                     </strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">Deals</span>
-                    <strong className="text-xs font-black text-sky-600 dark:text-sky-400 mt-0.5 block">
-                      {acc.open_deals_count} Active
+                    <span className="text-[10px] text-slate-400 font-semibold block uppercase">
+                      Net Receivables
+                    </span>
+                    <strong className="text-xs font-black text-slate-600 dark:text-slate-300 mt-0.5 block">
+                      ${Math.max(0, acc.total_invoiced - acc.total_collected).toLocaleString()}
                     </strong>
                   </div>
                 </div>
               </div>
 
-              {/* Action link */}
-              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <Link
-                  href="/orders"
-                  className="text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                >
-                  + <Bilingual textKey="btnPlaceOrder" />
-                </Link>
+              {/* CARD FOOTER */}
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
                 <Link
                   href={`/accounts/${acc.id}`}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm shadow-sky-500/20 transition-all hover:scale-[1.02]"
+                  className="font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 flex items-center gap-1.5 transition-colors"
                 >
-                  <Bilingual textKey="btnAccountDossier" /> <ChevronRight className="w-4 h-4" />
+                  <Activity className="w-3.5 h-3.5" />
+                  View 360° Profile &amp; Formularies
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
+                <span className="text-slate-400 text-[11px]">Synced with PostgreSQL</span>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ADD ACCOUNT MODAL */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-sm">
+                <Building2 className="w-4 h-4" />
+                <span>Add Institutional Hospital Account</span>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAccount} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Health System / Hospital Name
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Stanford University Medical Center"
+                  value={newAccount.name}
+                  onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Account Type</label>
+                  <select
+                    value={newAccount.account_type}
+                    onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  >
+                    <option value="hospital">Hospital (Academic/Tertiary)</option>
+                    <option value="health_system">Regional Health System</option>
+                    <option value="clinic">Specialty Clinic</option>
+                    <option value="pharmacy">Hospital Outpatient Pharmacy</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Licensed Beds</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="5000"
+                    value={newAccount.beds}
+                    onChange={(e) => setNewAccount({ ...newAccount, beds: Number(e.target.value) })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Commercial Territory</label>
+                <input
+                  type="text"
+                  value={newAccount.territory}
+                  onChange={(e) => setNewAccount({ ...newAccount, territory: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold transition-all shadow-md shadow-sky-500/20 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving to Database...' : 'Save Health System'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

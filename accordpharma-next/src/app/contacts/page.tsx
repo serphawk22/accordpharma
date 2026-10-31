@@ -32,8 +32,11 @@ export default function ContactsPage() {
   // Slide-over drawer state
   const [activeDossierHcp, setActiveDossierHcp] = useState<HealthcareProfessional | null>(null);
 
+  const [accountsList, setAccountsList] = useState<any[]>([]);
+
   // New HCP modal state
   const [showNewModal, setShowNewModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newHcpForm, setNewHcpForm] = useState({
     full_name: '',
     title: 'Attending Physician',
@@ -51,7 +54,22 @@ export default function ContactsPage() {
     const cached = clientStore.getContacts();
     setHcps(cached);
     setLoading(false);
+
     try {
+      // 1. Load accounts for account select dropdown
+      const accRes = await fetch('/api/accounts');
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        if (accData.items?.length) {
+          setAccountsList(accData.items);
+          setNewHcpForm((prev) => ({
+            ...prev,
+            account_id: prev.account_id === 'acc-1' ? accData.items[0].id : prev.account_id,
+          }));
+        }
+      }
+
+      // 2. Load contacts from PostgreSQL database
       const res = await fetch('/api/contacts');
       if (res.ok) {
         const data = await res.json();
@@ -74,38 +92,58 @@ export default function ContactsPage() {
     e.preventDefault();
     if (!newHcpForm.full_name) return;
 
+    setIsSubmitting(true);
     try {
       const { clientStore } = await import('@/lib/clientStore');
-      const accNames: Record<string, string> = {
-        'acc-1': 'St. Jude Metropolitan Medical Center',
-        'acc-2': 'Cedars-Sinai Comprehensive Cancer Pavilion',
-        'acc-3': 'Northwestern Heart & Vascular Institute',
-        'acc-4': 'Memorial Sloan Regional Health System',
-      };
-      const createdItem: HealthcareProfessional = {
-        id: `hcp-${Date.now()}`,
-        account_id: newHcpForm.account_id,
-        account_name: accNames[newHcpForm.account_id] || 'Medical Center Partner',
-        full_name: newHcpForm.full_name,
-        title: newHcpForm.title,
-        specialty: newHcpForm.specialty,
-        license_number: newHcpForm.license_number || `NPI-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-        prescribing_tier: newHcpForm.prescribing_tier as any,
-        kol_status: newHcpForm.kol_status,
-        email: newHcpForm.email || 'doctor@healthcare.org',
-        phone: newHcpForm.phone || '+1 (555) 019-2831',
-        country: 'United States',
-        territory: 'Territory West - California',
-        last_interaction_at: new Date().toISOString(),
-        interactions_count: 1,
-        status: 'ACTIVE',
-      };
-
-      fetch('/api/contacts', {
+      const selectedAcc = accountsList.find((a) => a.id === newHcpForm.account_id);
+      
+      const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newHcpForm),
-      }).catch(() => {});
+      });
+
+      let createdItem: HealthcareProfessional;
+      if (res.ok) {
+        const savedData = await res.json();
+        createdItem = {
+          id: String(savedData.id),
+          account_id: savedData.account_id || newHcpForm.account_id,
+          account_name: savedData.account_name || selectedAcc?.name || 'Medical Center Partner',
+          full_name: savedData.full_name || newHcpForm.full_name,
+          title: savedData.title || newHcpForm.title,
+          specialty: savedData.specialty || newHcpForm.specialty,
+          license_number: savedData.license_number || newHcpForm.license_number || `NPI-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+          prescribing_tier: (savedData.prescribing_tier || newHcpForm.prescribing_tier) as any,
+          kol_status: Boolean(savedData.kol_status ?? newHcpForm.kol_status),
+          email: savedData.email || newHcpForm.email || 'doctor@healthcare.org',
+          phone: savedData.phone || newHcpForm.phone || '+1 (555) 019-2831',
+          country: 'United States',
+          territory: savedData.territory || selectedAcc?.territory || 'Territory West - California',
+          last_interaction_at: new Date().toISOString(),
+          interactions_count: 1,
+          status: 'ACTIVE',
+        };
+      } else {
+        createdItem = {
+          id: `hcp-${Date.now()}`,
+          account_id: newHcpForm.account_id,
+          account_name: selectedAcc?.name || 'Medical Center Partner',
+          full_name: newHcpForm.full_name,
+          title: newHcpForm.title,
+          specialty: newHcpForm.specialty,
+          license_number: newHcpForm.license_number || `NPI-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+          prescribing_tier: newHcpForm.prescribing_tier as any,
+          kol_status: newHcpForm.kol_status,
+          email: newHcpForm.email || 'doctor@healthcare.org',
+          phone: newHcpForm.phone || '+1 (555) 019-2831',
+          country: 'United States',
+          territory: selectedAcc?.territory || 'Territory West - California',
+          last_interaction_at: new Date().toISOString(),
+          interactions_count: 1,
+          status: 'ACTIVE',
+        };
+      }
 
       const updated = clientStore.saveContact(createdItem);
       setHcps(updated);
@@ -119,10 +157,12 @@ export default function ContactsPage() {
         kol_status: false,
         email: '',
         phone: '',
-        account_id: 'acc-1',
+        account_id: accountsList[0]?.id || 'acc-1',
       });
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -488,10 +528,20 @@ export default function ContactsPage() {
                     onChange={(e) => setNewHcpForm({ ...newHcpForm, account_id: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
                   >
-                    <option value="acc-1">St. Jude Metropolitan Medical Center</option>
-                    <option value="acc-2">Cedars-Sinai Comprehensive Cancer Pavilion</option>
-                    <option value="acc-3">Northwestern Heart & Vascular Institute</option>
-                    <option value="acc-4">Memorial Sloan Regional Health System</option>
+                    {accountsList.length > 0 ? (
+                      accountsList.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="acc-1">St. Jude Metropolitan Medical Center</option>
+                        <option value="acc-2">Cedars-Sinai Comprehensive Cancer Pavilion</option>
+                        <option value="acc-3">Northwestern Heart & Vascular Institute</option>
+                        <option value="acc-4">Memorial Sloan Regional Health System</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

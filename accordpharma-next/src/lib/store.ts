@@ -1778,6 +1778,10 @@ class PharmaDataStore {
   getAccount(id: string) {
     return this.accounts.find((a) => a.id === id);
   }
+  addAccount(acc: Account) {
+    this.accounts.unshift(acc);
+    return acc;
+  }
 
   // HCPs
   getHCPs() {

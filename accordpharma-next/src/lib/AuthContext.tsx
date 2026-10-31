@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsedUser = JSON.parse(savedUserStr);
         setToken(savedToken);
         setUser(parsedUser);
+        document.cookie = `accord_token=${savedToken}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `accord_session=active; path=/; max-age=604800; SameSite=Lax`;
       }
     } catch (e) {
       console.warn('Failed to parse saved user from storage:', e);
@@ -110,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
         localStorage.setItem(USER_KEY, JSON.stringify(profileUser));
 
-        // Set cookie for route protection middleware
+        // Set cookies for route protection middleware and API routes
+        document.cookie = `accord_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
         document.cookie = `accord_session=active; path=/; max-age=604800; SameSite=Lax`;
 
         setIsLoading(false);
@@ -200,7 +203,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_KEY);
       localStorage.removeItem(USER_KEY);
-      // Clear the session cookie so middleware redirects to /login
+      // Clear the session and token cookies so middleware and API routes know user is logged out
+      document.cookie = 'accord_token=; path=/; max-age=0; SameSite=Lax';
       document.cookie = 'accord_session=; path=/; max-age=0; SameSite=Lax';
     }
   };

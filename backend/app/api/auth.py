@@ -164,6 +164,73 @@ def _ensure_default_user(db: Session, email: str, password: str) -> User | None:
                 db.flush()
             db.add(UserRole(user_id=user.id, role_id=role.id))
         db.commit()
+
+    # Ensure default accounts, contacts, and tasks exist for Marcus Vance
+    if user and "marcus" in email:
+        from app.models import Account, Contact, HealthcareProfessionalProfile, CRMTask
+        existing_acc = db.scalar(select(Account.id).where(Account.assigned_employee_id == user.id))
+        if existing_acc is None:
+            demo_accounts = [
+                ("St. Jude Metropolitan Medical Center", "hospital", user.territory or "Territory West - California & Bay Area"),
+                ("Cedars-Sinai Comprehensive Cancer Pavilion", "hospital", user.territory or "Territory West - California & Bay Area"),
+                ("Northwestern Heart & Vascular Institute", "hospital", user.territory or "Territory West - California & Bay Area"),
+                ("Memorial Sloan Regional Health System", "hospital", user.territory or "Territory West - California & Bay Area"),
+            ]
+            acc_objs = []
+            for name, atype, terr in demo_accounts:
+                acc = Account(
+                    name=name,
+                    account_type=atype,
+                    territory=terr,
+                    assigned_employee_id=user.id,
+                    status="active",
+                )
+                db.add(acc)
+                acc_objs.append(acc)
+            db.flush()
+
+            hcp_seed = [
+                (acc_objs[0].id, "Dr. Aris Vance, MD", "aris.vance@stjude.org", "Chief of Cardiology", "Cardiology", "NPI-9876543210"),
+                (acc_objs[1].id, "Dr. Elena Rostova, MD", "elena.rostova@cedars.org", "Chair of Oncology", "Oncology", "NPI-9876543211"),
+                (acc_objs[2].id, "Dr. Marcus Sterling, MD", "m.sterling@northwestern.org", "Lead Cardiologist", "Interventional Cardiology", "NPI-9876543212"),
+                (acc_objs[3].id, "Dr. Sarah Chen, MD", "sarah.chen@memorial.org", "Director of Pharmacy", "Clinical Pharmacology", "NPI-9876543213"),
+            ]
+            for acc_id, fname, email_hcp, title, spec, lic in hcp_seed:
+                cnt = Contact(
+                    account_id=acc_id,
+                    full_name=fname,
+                    email=email_hcp,
+                    title=title,
+                    professional_category="Healthcare Professional",
+                    territory=user.territory,
+                    assigned_rep_id=user.id,
+                    status="active",
+                )
+                db.add(cnt)
+                db.flush()
+                db.add(HealthcareProfessionalProfile(
+                    contact_id=cnt.id,
+                    specialty=spec,
+                    license_number=lic,
+                    country="US",
+                ))
+
+            task_seed = [
+                ("Follow up on Cardiology Phase III formulary review", acc_objs[0].id, "high"),
+                ("Deliver trial sample kit for CardioVas-XR to Dr. Elena Rostova", acc_objs[1].id, "normal"),
+                ("Submit hospital procurement quota proposal for Q4", acc_objs[2].id, "urgent"),
+            ]
+            for t_title, a_id, prio in task_seed:
+                db.add(CRMTask(
+                    title=t_title,
+                    account_id=a_id,
+                    assigned_to_id=user.id,
+                    created_by_id=user.id,
+                    priority=prio,
+                    status="open",
+                    kind="task",
+                ))
+            db.commit()
     return user
 
 
