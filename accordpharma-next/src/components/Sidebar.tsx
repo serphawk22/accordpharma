@@ -50,6 +50,7 @@ import {
   Zap,
   Mic2,
   Cpu,
+  Swords,
   LogOut,
   LogIn,
 } from 'lucide-react';
@@ -575,6 +576,8 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+      </div>
+
       {/* BACKEND CONNECTIVITY STATUS */}
       <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/40">
         <div className="flex items-center justify-between text-[11px] font-semibold">
