@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import {
   LayoutDashboard,
   ListTodo,
@@ -53,18 +53,35 @@ import {
   Swords,
   LogOut,
   LogIn,
+  Menu,
+  X,
 } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import { Bilingual } from './Bilingual';
 import { checkBackendHealth, getBackendUrl } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import { clientStore } from '@/lib/clientStore';
+
+function getThemePreference() {
+  try {
+    return localStorage.getItem('accord_theme') !== 'light';
+  } catch {
+    return true;
+  }
+}
+
+function subscribeToThemePreference(onChange: () => void) {
+  window.addEventListener('accord-theme-change', onChange);
+  return () => window.removeEventListener('accord-theme-change', onChange);
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout, isAuthenticated } = useAuth();
-  const [darkMode, setDarkMode] = useState(true);
+  const darkMode = useSyncExternalStore(subscribeToThemePreference, getThemePreference, () => true);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
-  const [backendUrl, setBackendUrl] = useState('');
+  const backendUrl = getBackendUrl();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [taskCount, setTaskCount] = useState(3);
   const [contactCount, setContactCount] = useState(5);
 
@@ -77,45 +94,40 @@ export default function Sidebar() {
   const [governanceOpen, setGovernanceOpen] = useState(true);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('accord_theme');
-      const isDark = saved ? saved === 'dark' : true;
-      setDarkMode(isDark);
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-
-      // Read persistent counts
-      const { clientStore } = require('@/lib/clientStore');
-      const tasks = clientStore.getTasks();
-      const contacts = clientStore.getContacts();
-      const pending = tasks.filter((t: any) => t.status === 'pending');
-      setTaskCount(pending.length);
-      setContactCount(contacts.length);
-    } catch {}
-
-    const url = getBackendUrl();
-    setBackendUrl(url);
+    let active = true;
+    const countTimer = window.setTimeout(() => {
+      try {
+        const tasks = clientStore.getTasks();
+        const contacts = clientStore.getContacts();
+        if (active) {
+          setTaskCount(tasks.filter((task) => task.status === 'pending').length);
+          setContactCount(contacts.length);
+        }
+      } catch {}
+    }, 0);
     checkBackendHealth()
       .then((res) => {
-        setBackendStatus(res.status === 'online' ? 'online' : 'offline');
+        if (active) setBackendStatus(res.status === 'online' ? 'online' : 'offline');
       })
-      .catch(() => setBackendStatus('offline'));
+      .catch(() => {
+        if (active) setBackendStatus('offline');
+      });
+    return () => {
+      active = false;
+      window.clearTimeout(countTimer);
+    };
   }, [pathname]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   const toggleTheme = () => {
     const next = !darkMode;
-    setDarkMode(next);
     try {
       localStorage.setItem('accord_theme', next ? 'dark' : 'light');
     } catch {}
-    if (next) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    window.dispatchEvent(new Event('accord-theme-change'));
   };
 
   const navItemClass = (path: string) => {
@@ -134,7 +146,32 @@ export default function Sidebar() {
   if (isPublicPage) return null;
 
   return (
-    <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-screen sticky top-0 shrink-0 z-30 select-none">
+    <>
+    <button
+      type="button"
+      onClick={() => setMobileOpen((open) => !open)}
+      className="fixed left-3 top-3 z-[60] inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-white lg:hidden"
+      aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+      aria-expanded={mobileOpen}
+      aria-controls="primary-navigation"
+    >
+      {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+    </button>
+    {mobileOpen && (
+      <button
+        type="button"
+        onClick={() => setMobileOpen(false)}
+        className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm lg:hidden"
+        aria-label="Close navigation menu"
+      />
+    )}
+    <aside
+      id="primary-navigation"
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest('a')) setMobileOpen(false);
+      }}
+      className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 select-none flex-col border-r border-slate-200 bg-white transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+    >
       {/* BRAND HEADER */}
       <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -674,6 +711,6 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }
-
