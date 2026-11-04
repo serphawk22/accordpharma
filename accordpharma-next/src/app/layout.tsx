@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LanguageProvider } from '@/lib/LanguageContext';
 import { AuthProvider } from '@/lib/AuthContext';
+import SectionGuide from '@/components/SectionGuide';
 
 export const metadata: Metadata = {
   title: 'Accord Pharma · Commercial CRM & Clinical e-Detailing Studio',
@@ -32,10 +33,13 @@ export default function RootLayout({
 
           {/* Main Application Area */}
           <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
-            <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+            <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 pt-16 sm:px-6 sm:pb-6 sm:pt-16 md:px-8 md:pb-8 md:pt-16 lg:pt-8">
               <AuthGuard>{children}</AuthGuard>
             </main>
           </div>
+          <Suspense fallback={null}>
+            <SectionGuide />
+          </Suspense>
         </LanguageProvider>
         </AuthProvider>
       </body>

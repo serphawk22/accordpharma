@@ -108,3 +108,42 @@ body {
 .animate-pulse-glow {
   animation: pulseGlow 2s infinite ease-in-out;
 }
+
+@media (max-width: 640px) {
+  main {
+    min-width: 0;
+  }
+
+  main .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  main table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main input,
+  main select,
+  main textarea {
+    max-width: 100%;
+  }
+
+  main button,
+  main a {
+    scroll-margin: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
